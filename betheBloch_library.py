@@ -29,7 +29,7 @@ stern_x1 = 3
 stern_C = 5.2146
 ### RECOMBINATION CONSTANTS
 W = 23.6 # eV needed to produce e-
-elPerMeV = 1./W # Number of electrons produced per MeV (42.37 e- per keV, 42,370 per MeV)
+elPerMeV = 1./W * 1e6 # Number of electrons produced per MeV (42.37 e- per keV, 42,370 per MeV)
 birks_A = 0.800 # Birks recombination model, parameter A (dim.less)
 birks_k = 0.0486 # Birks recombination model, parameter k (kV/cm)*(g/cm2)/MeV
 box_A = 0.930 # Modified Box recombination model, parameter A (dim.less)
@@ -119,12 +119,13 @@ def MPV(mass,energy):
 
 
 ### RESIDUAL RANGES IN CSDA APPROXIMATION
-def ResRange(mass,e_init=1000.,step=0.1):
+def ResRange(mass,e_init=1000.,step=0.1,outType='dedx',recModel='box'):
     '''
     Mass and energy in MeV.
     Initial energy is initial kinetic energy
     Step in cm.
-    Return MeV/cm. Takes into account lar density already.
+    Return MeV/cm by default (dedx). Takes into account lar density already.
+    If 'dqdx' is selected, return number of electrons per cm. You also need to select model ('box' or 'birks')
     '''
 
     # Get curves as function of kinetic energy (inefficient, but I am lazy and recycling code)
@@ -174,7 +175,12 @@ def ResRange(mass,e_init=1000.,step=0.1):
     # Distance as distance from end point
     mpv_dist = -1*(mpv_dist - mpv_dist.max())
 
-    return mean_dist, mean_dedx, mpv_dist, mpv_dedx
+    if outType=='dqdx':
+        mean_dqdx = np.array([dedx*elPerMeV*Recombination(dedx,model=recModel) for dedx in mean_dedx])
+        mpv_dqdx = np.array([dedx*elPerMeV*Recombination(dedx,model=recModel) for dedx in mpv_dedx])
+        return mean_dist, mean_dqdx, mpv_dist, mpv_dqdx
+    else:
+        return mean_dist, mean_dedx, mpv_dist, mpv_dedx
 
 
 def Recombination(dedx,model='box',efield=0.5):
@@ -184,11 +190,25 @@ def Recombination(dedx,model='box',efield=0.5):
     Model can be 'box' or 'birks'
     Efield in kV/cm
     '''
+    # Protect against negative values
+    if dedx<=0:
+        return 0
+
+    # Return modified box model
     if model=='box':
         xi = box_B/(rho*efield) * dedx
         recomb = np.log(box_A + xi)/xi
-        return recomb
-    else if model=='birks':
-        return birks_A / ( 1. + birks_k/(rho*efield * dedx) )
+        # Make sure value is positive
+        if recomb>0: return recomb
+        else: return 0
+
+    # Return Birks model
+    elif model=='birks':
+        recomb = birks_A / ( 1. + birks_k/(rho*efield) * dedx )
+        # Make sure value is positive
+        if recomb>0: return recomb
+        else: return 0
+
+    # Make sure model input is correct
     else:
         raise Exception("Wrong model. Choose 'box' or 'birks'")
