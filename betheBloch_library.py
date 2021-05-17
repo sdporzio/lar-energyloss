@@ -1,27 +1,39 @@
-### SEE https://indico.fnal.gov/event/14933/contributions/28526/attachments/17961/22583/Final_SIST_Paper.pdf
-### AND https://pdg.lbl.gov/2009/reviews/rpp2009-rev-passage-particles-matter.pdf
-### AND https://www.physics.princeton.edu/~phy209/week2/bethe_formula.pdf
+### ENERGY LOSS DOCUMENTATION
+# https://indico.fnal.gov/event/14933/contributions/28526/attachments/17961/22583/Final_SIST_Paper.pdf
+# https://pdg.lbl.gov/2009/reviews/rpp2009-rev-passage-particles-matter.pdf
+# https://www.physics.princeton.edu/~phy209/week2/bethe_formula.pdf
+### CONSTANTS DOCUMENTATION
+# https://lar.bnl.gov/properties/
+
+### IMPORTS
 import numpy as np
 from scipy.interpolate import interp1d
 
-### CONSTANTS
+### GENERIC CONSTANTS
 c = 299792458 # m/s (speed of light)
 c2 = np.power(c,2.) # Squared
-K = 0.307075 # MeV g-1 cm2 (constant)
 z2 = 1. #  Multiples of electron charge (electric charge of moving particle)
 ZA = 0.4509 # Argon Z/A (18p / 39.79pn)
-I = 188*1e-6 # MeV (mean excitation energy of material, usually Z*10 eV)
-I2 = np.power(I,2.) # Squared
 rho = 1.396 # g/cm3 (liquid argon density)
 m_e = 0.510/c2 # MeV/c2 (electron mass)
-j = 0.200 # Bichsel constant, from H. Bichsel, Rev. Mod. Phys.60, 663 (1988)
-# Sternheimer's parameters (only for density effect)
-# Taken from detectorproperties.fcl (LArSoft)
+### BETHE-BLOCH CONSTANTS
+K = 0.307075 # MeV g-1 cm2 (constant)
+I = 188*1e-6 # MeV (mean excitation energy of material, usually Z*10 eV)
+I2 = np.power(I,2.) # Squared
+j = 0.200 # Bichsel j constant, from H. Bichsel, Rev. Mod. Phys.60, 663 (1988)
+# Sternheimer's parameters (only for density effect), taken from detectorproperties.fcl (LArSoft)
 stern_a = 0.1956
 stern_k = 3
 stern_x0 = 0.2
 stern_x1 = 3
 stern_C = 5.2146
+### RECOMBINATION CONSTANTS
+W = 23.6 # eV needed to produce e-
+elPerMeV = 1./W # Number of electrons produced per MeV (42.37 e- per keV, 42,370 per MeV)
+birks_A = 0.800 # Birks recombination model, parameter A (dim.less)
+birks_k = 0.0486 # Birks recombination model, parameter k (kV/cm)*(g/cm2)/MeV
+box_A = 0.930 # Modified Box recombination model, parameter A (dim.less)
+box_B = 0.212 # Modified Box recombination model, parameter B (kV/cm)*(g/cm2)/MeV
 
 ### RELATIVISTIC QUANTITIES
 def Relat(mass,energy):
@@ -165,4 +177,18 @@ def ResRange(mass,e_init=1000.,step=0.1):
     return mean_dist, mean_dedx, mpv_dist, mpv_dedx
 
 
-    
+def Recombination(dedx,model='box',efield=0.5):
+    '''
+    Takes as input dedx as MeV/cm
+    Return #e-/cm produced, not collected (you need to take into account lifetime and diff for that)
+    Model can be 'box' or 'birks'
+    Efield in kV/cm
+    '''
+    if model=='box':
+        xi = box_B/(rho*efield) * dedx
+        recomb = np.log(box_A + xi)/xi
+        return recomb
+    else if model=='birks':
+        return birks_A / ( 1. + birks_k/(rho*efield * dedx) )
+    else:
+        raise Exception("Wrong model. Choose 'box' or 'birks'")
