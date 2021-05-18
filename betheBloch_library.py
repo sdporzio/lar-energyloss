@@ -87,15 +87,23 @@ def BetheBloch(mass,energy):
     p2 = beta2
     p3 = delta/2.
     dedx = scal * (p1 - p2 - p3)
+    # Bethe-Block is in units of "density-scaled distance"
+    # so dedx is actually (MeV g-1 cm2)
+    # we need actually distance traversed in liquid argon
+    # Multiplying by density (g cm-3) gives us (Mev cm-1) or MeV/cm
+    # which is what we need
     dedr = dedx * rho # Bethe-Block is in units of "density-scaled distance", we need actually distance traversed in liquid argon
     return kin,dedr
 
 ### MOST PROBABLE VALUE (MPV) FROM LANDAU-VAVILOV-BICHSEL (LVB)
-def MPV(mass,energy):
+def Landau(mass,energy,dl):
     '''
     Mass and energy in MeV.
-    Return MeV/cm. Takes into account lar density already.
+    dl (thickness length) in cm
+    Return MeV/cm.
     '''
+    # Thickness is g cm-2, equal to dl multiplied by density
+    thickness = dl*rho
 
     # Return nothing for nonsensical requests
     if energy<mass:
@@ -103,7 +111,7 @@ def MPV(mass,energy):
     # Define variables
     momentum,gamma,gamma2,beta,beta2,kin,Mass = Relat(mass,energy)
     # Calculate xi
-    xi = 1/2.*K*z2*ZA/beta2
+    xi = 1/2.*K*ZA*(thickness/beta2)
     # Define density effect corrections
     stern_x = np.log10(gamma*beta)
     delta = 0
@@ -113,9 +121,14 @@ def MPV(mass,energy):
     # Calculate the different parts
     p1 = np.log(2*m_e*c2*beta2*gamma2/I)
     p2 = np.log(xi/I) + j - beta2 - delta
-    dedx = xi * (p1 + p2)
-    dedr = dedx * rho # Bethe-Block is in units of "density-scaled distance", we need actually distance traversed in liquid argon
-    return kin, dedr
+    deltap_x = (xi * (p1 + p2))/thickness
+    # Again, deltap over x is is in units of "density-scaled distance"
+    # so deltap_x is actually (MeV g-1 cm2)
+    # we need actually distance traversed in liquid argon
+    # Multiplying by density (g cm-3) gives us (Mev cm-1) or MeV/cm
+    # which is what we need
+    deltap_r = deltap_x*rho
+    return kin, delta_r
 
 
 ### RESIDUAL RANGES IN CSDA APPROXIMATION
@@ -209,6 +222,27 @@ def Recombination(dedx,model='box',efield=0.5):
         if recomb>0: return recomb
         else: return 0
 
+    # Make sure model input is correct
+    else:
+        raise Exception("Wrong model. Choose 'box' or 'birks'")
+
+
+dedx = np.linspace(0,10,500)
+dqdx_box = [de*elPerMeV*Recombination(de,model='box') for de in dedx]
+dqdx_birks = [de*elPerMeV*Recombination(de,model='birks') for de in dedx]
+box_inv = interp1d(dqdx_box,dedx,fill_value='extrapolate')
+birks_inv = interp1d(dqdx_birks,dedx,fill_value='extrapolate')
+
+def ConvertQtoE(dqdx,model='box'):
+    '''
+    Takes as input dqdx as e-/cm and return MeV/cm
+    '''
+    # Return modified box model
+    if model=='box':
+        return box_inv(dqdx)
+    # Return Birks model
+    elif model=='birks':
+        return birks_inv(dqdx)
     # Make sure model input is correct
     else:
         raise Exception("Wrong model. Choose 'box' or 'birks'")
