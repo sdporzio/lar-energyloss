@@ -255,6 +255,8 @@ def ResRange(mass,dl=1,e_init=1000.,step=0.1,outType='dedx',recModel='box'):
         return mean_dist, mean_dedx, mpv_dist, mpv_dedx
 
 
+### CALCULATE RECOMBINATION FACTOR BOTH IN BOX AND BIRKS MODEL
+### https://arxiv.org/pdf/1306.1712.pdf
 def Recombination(dedx,model='box',efield=0.5):
     '''
     Takes as input dedx as MeV/cm
